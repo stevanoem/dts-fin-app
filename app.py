@@ -189,7 +189,7 @@ else:
         with st.spinner("Analiziram podatke i generišem izveštaj..."):
             try:
                 excel_file_path = st.session_state['uploaded_file_path']
-                client_name = os.path.basename(excel_file_path).split("_")[0]
+                client_name = os.path.basename(excel_file_path).split("_")[3]
 
                 logger.info(f"Pokrenuta analiza za klijenta: {client_name}, fajl: {excel_file_path}")
 
@@ -210,8 +210,15 @@ else:
                     client_name_from_json = client_name # fallback
                 st.session_state['client_name'] = client_name_from_json
 
+                # trenutni datum i vreme
+                now = datetime.now()
+                # konvertovanje u string u formatu "YYYY-MM-DD HH:MM:SS"
+                current_datetime_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+
                 prompt_text = f"""
-                        You are an expert Credit Risk Analyst AI. Your task is to analyze the provided JSON data for a client and generate a concise "AI Comment" **in Serbian** for a human credit risk analyst. This comment should highlight key insights, potential risks, positive indicators, and any anomalies relevant to a credit decision. Your language should be professional and direct, avoiding unnecessary jargon explanations or raw data markers in the final comment unless specifically instructed.
+                        You are an expert Credit Risk Analyst AI. Your task is to analyze the provided JSON data for a client and generate a concise "AI Comment" **in Serbian** for a human credit risk analyst. Use a professional and consistent style throughout the comment. All bullet points should be concise, structured, and uniform in tone. Write entirely in Serbian.
+                        This comment should highlight key insights, potential risks, positive indicators, and any anomalies relevant to a credit decision. Your language should be professional and direct, avoiding unnecessary jargon explanations or raw data markers in the final comment unless specifically instructed.
 
                         **Input Data:**
                         You will receive a JSON object containing various details about the client. Key sections include:
@@ -224,6 +231,50 @@ else:
                         - `rezimeEUR`: Summary of financial data in EUR over several years. **Unlike `finansijska_analizaEUR`, the year labels in `rezimeEUR` represent actual fiscal years. These years must be used to determine the correct temporal context for the data.**
                         - `sudski_sporovi`: History of legal disputes, containing information about past and ongoing court cases.
                         - `povezana_lica`: Section contains information about related entities, including company name, type of relationship, APR (Business Registry) status, and NBS (National Bank of Serbia) status.
+                        - `istorija_blokada`: History of blockages, containing information about past and ongoing blockages.
+                        - `istorijaKL`: History of credit limits the client has had with us.
+
+                        **NOTE:** DTS credit score ranges 0–5 (DTS bonitetna ocena). Threshold is 3.2; clients below are not accepted. Primarily used for new clients, updated annually for existing ones.
+                                This value is calculated in field ['bonitetna_ocena'][0]['DTS bonitetna ocena']; the following explanation is provided for your reference:
+                                Scoring components (1–5, then weighted):
+                                    * Incorporation Date (5%) - current date: {current_datetime_str}:
+                                        * 1 – 0–3 months
+                                        * 2 – 3–12 months
+                                        * 3 – 1–2 years
+                                        * 4 – 2–5 years
+                                        * 5 – more than 5 years
+                                        Weighted score: X × 5%
+                                    * Litigation (10%):
+                                        * 1 – claims > 100,000
+                                        * 2 – claims 50,000–100,000
+                                        * 3 – claims 10,000–50,000
+                                        * 4 – claims 0–10,000
+                                        * 5 – no litigation
+                                        Weighted score: X × 10%
+                                    * Blockage Days (35%):
+                                        * 1 – more than 30 days
+                                        * 2 – 20–30 days
+                                        * 3 – 10–20 days
+                                        * 4 – 0–10 days
+                                        * 5 – no blockage
+                                        Weighted score: X × 35%
+                                    * Collateral Type (30%):
+                                        * 1 – no collateral
+                                        * 2 – promissory notes
+                                        * 3 – compensation
+                                        * 4 – validated promissory notes
+                                        * 5 – bank guarantees or advance payments
+                                        Weighted score: X × 30%
+                                    * Liquidity (20%):
+                                        * 1 – less than 0
+                                        * 2 – 0–1
+                                        * 3 – 1.1–1.5
+                                        * 4 – 1.5–2
+                                        * 5 – greater than 2
+                                        Weighted score: X × 20%
+                                Each component is scored 1–5 and then multiplied by its weight.
+                                Total Score = sum of all weighted components.
+
 
                         **Analysis Guidelines:**
                         1.  **Overall Assessment:** Start with a brief overall sentiment (e.g., nizak rizik, srednji rizik, visok rizik, značajne zabrinutosti). This assessment should reflect the most critical findings.
@@ -257,6 +308,7 @@ else:
                             * Da bi se proverilo da li je klijent postojeći, koristi se ['osnovne_informacije'][8]['Vrednost'] – ako vrednost pokazuje da poslujemo sa klijentom, uključuju se stavke
                                 * Valuta plaćanja u danima (samo za postojeće klijente, preuzima se iz ['osnovne_informacije'][12]['Vrednost'])
                                 * Ukupan dug i dospeli dug iz SAP-a, kao i prosečno kašnjenje dospelog duga u danima (samo za postojeće klijente, gde se ukupan dug preuzima iz ['prometRSD'][19]['Vrednost'], a dospeli dug iz ['prometRSD'][20]['Vrednost']).
+                                * DTS ocena - koristi se ['bonitetna_ocena'][0]['DTS bonitetna ocena'].
 
                         *   **Ukupna procena:** (e.g., Visok rizik zbog loše bonitetne ocene i negativnog EBITDA...)
                         *   **Pozitivni indikatori:**
@@ -296,13 +348,13 @@ else:
                 ai_comment_output_base_dir = os.path.join(LOCAL_OUTPUT_BASE_DIR, "komentari")
                 ai_comment_firm_specific_dir = os.path.join(ai_comment_output_base_dir, client_name)
                 os.makedirs(ai_comment_firm_specific_dir, exist_ok=True)
-                ai_comment_local_file = os.path.join(ai_comment_firm_specific_dir, f'{st.session_state['timestamp'] +'_'+ st.session_state['user'] + '_' +  client_name}_ai_comment.txt')
+                ai_comment_local_file = os.path.join(ai_comment_firm_specific_dir, f'{st.session_state['timestamp'] +'_'+ st.session_state['user'] + '_' +  client_name_from_json}_ai_comment.txt')
 
                 with open(ai_comment_local_file, 'w', encoding='utf-8') as f_comment:
                     f_comment.write(ai_comment)
 
                 os.makedirs(os.path.join(LOCAL_OUTPUT_BASE_DIR, 'json'), exist_ok=True)
-                json_output_path = os.path.join(LOCAL_OUTPUT_BASE_DIR, 'json', f'{st.session_state['timestamp'] +'_'+ st.session_state['user'] + '_' + client_name}_data_for_ai.json')
+                json_output_path = os.path.join(LOCAL_OUTPUT_BASE_DIR, 'json', f'{st.session_state['timestamp'] +'_'+ st.session_state['user'] + '_' + client_name_from_json}_data_for_ai.json')
                 with open(json_output_path, 'w', encoding='utf-8') as json_file:
                     json.dump(json_content_for_ai, json_file, ensure_ascii=False, indent=4)
 
