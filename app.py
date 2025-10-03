@@ -46,17 +46,15 @@ def check_password():
     if st.button("Potvrdi"):
         if password:
             try:
+                users_db = st.secrets["users"]
                 # u hex
                 entered_password_hex = hesiraj_lozinku(password)
-                # Preuzmi tačnu hex šifru iz st.secrets
-                correct_password_hex1 = st.secrets["auth1"]["password_hex"]
-                
-
-                if entered_password_hex == correct_password_hex1:
-                    st.session_state["authenticated"] = True
-                    st.session_state['user'] = 'Emilija'
-                    # st.rerun() - stranica se odmah osvezi i prikaze app
-                    st.rerun()
+                for username, correct_password_hex in users_db.items():
+                    if entered_password_hex == correct_password_hex:
+                        # Ako se sifra poklopi, postavi stanje sesije i prekini
+                        st.session_state["authenticated"] = True
+                        st.session_state['user'] = username
+                        st.rerun()
                 else:
                     st.error("Pristupna šifra nije tačna.")
             except KeyError:
