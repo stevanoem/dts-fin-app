@@ -360,8 +360,7 @@ else:
                         --- END OF CLIENT JSON DATA ---
                 """
 
-                #ai_comment = generate_AIcomment(prompt_text, API_KEY)
-                ai_comment = "Proba"
+                ai_comment = generate_AIcomment(prompt_text, API_KEY)
                 logger.info("AI komentar uspešno generisan.")
 
                 ai_comment_output_base_dir = os.path.join(LOCAL_OUTPUT_BASE_DIR, "komentari")
