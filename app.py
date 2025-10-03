@@ -83,8 +83,8 @@ else:
     def initialize_logger(user_name: str):
 
         #session_id = str(uuid.uuid4())[:8]
-        #timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        logger_name = f"FinAiApp"
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        logger_name = f"FinAiApp_{timestamp}"
         logger = logging.getLogger(logger_name)
         logger.setLevel(logging.INFO)
         logger.propagate = False
