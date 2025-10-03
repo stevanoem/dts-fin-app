@@ -2,9 +2,11 @@ import os
 import sys
 import shutil
 from datetime import datetime
+from pathlib import Path
 import pandas as pd
 import json
 import hashlib
+import uuid
 
 import streamlit as st
 import logging
@@ -19,7 +21,9 @@ from google_drive_utils import upload_drive, google_drive_auth
 
 LOCAL_OUTPUT_BASE_DIR = "output"
 LOG_PATH = os.path.join(LOCAL_OUTPUT_BASE_DIR, "app.log")
+LOG_DIR = "output/logs/"
 os.makedirs(LOCAL_OUTPUT_BASE_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 API_KEY = st.secrets["api_keys"]["openai"]
 
 def hesiraj_lozinku(lozinka: str) -> str:
@@ -67,6 +71,7 @@ def check_password():
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state['user'] = ''
+    st.session_state['log_path'] = ''
 
 # Ako korisnik nije autorizovan, prikaži ekran za prijavu
 if not st.session_state["authenticated"]:
@@ -74,12 +79,18 @@ if not st.session_state["authenticated"]:
 else:
     # --- LOGGING SETTINGS ---
 
-    def initialize_logger():
-        logger = logging.getLogger("FinAiApp")
+    def initialize_logger(user_name: str):
+
+        session_id = str(uuid.uuid4())[:8]
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        logger_name = f"FinAiApp"
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
 
         if not logger.handlers:
-            logger.setLevel(logging.INFO)
-            logger.propagate = False
+            #logger.setLevel(logging.INFO)
+            #logger.propagate = False
 
             log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
@@ -89,17 +100,21 @@ else:
             logger.addHandler(stream_handler)
 
             # File handler za lokalni log koji ćeš slati na Google Drive
-            file_handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
+            logfile = os.path.join(LOG_DIR, f"{timestamp}_{user_name}_{session_id}.log")
+            file_handler = logging.FileHandler(logfile, encoding="utf-8")
             file_handler.setFormatter(log_formatter)
             logger.addHandler(file_handler)
 
-            logger.info("--- Aplikacija pokrenuta, loger konfigurisan ---")
+            st.session_state['log_path'] = logfile
+
+            logger.info("--- Aplikacija pokrenuta ---")
+            logger.info("--- Logger inicijalizovan ---")
 
         return logger
 
     # --- Initialization ---
     if 'logger' not in st.session_state:
-        st.session_state['logger'] = initialize_logger()
+        st.session_state['logger'] = initialize_logger(user_name=st.session_state['user'])
 
     logger = st.session_state['logger']
     st.title('Analiza kreditnog rizika')
@@ -119,6 +134,7 @@ else:
         st.session_state['file_error'] =''
         st.session_state['openai_error']=''
         st.session_state['upload_in_progress'] = False
+        st.session_state['analysis_no'] = 0
         logger.info("Session state inicijalizovan. Aplikacija čeka fajl.")
 
     # --- KONTROLA TOKA APLIKACIJE ---
@@ -402,7 +418,7 @@ else:
                 st.session_state['ai_comment'] = ai_comment
                 #st.session_state['pdf_path'] = pdf_file_path
                 st.session_state['current_stage'] = 'analysis_done'
-            
+                st.session_state['analysis_no'] = st.session_state['analysis_no'] + 1
                 st.rerun()
 
             
@@ -430,6 +446,7 @@ else:
     elif st.session_state['current_stage'] == 'analysis_done':
         st.header("Rezultati analize")
         st.success("Analiza je uspešno završena!")
+        
         # Ovde prikažite rezultate koje ste sačuvali u session_state
         st.subheader("AI Komentar:")
         st.text_area("Generisani AI Komentar:", st.session_state['ai_comment'], height=300, key="ai_comment_display")
@@ -446,10 +463,10 @@ else:
                         DRIVE_FOLDER_ID = None
 
                     if DRIVE_FOLDER_ID:
-                        log_temp_path = f"{st.session_state['timestamp'] +'_'+ st.session_state['user']}_app.log"
-
-                    
-                        shutil.copy(LOG_PATH, log_temp_path)
+                        #log_temp_path = f"{st.session_state['timestamp'] +'_'+ st.session_state['user']}_app.log"
+                        pom = Path(st.session_state['log_path'])
+                        log_temp_path = pom.with_name(f"{pom.stem}_{st.session_state['analysis_no']}{pom.suffix}")
+                        shutil.copy(st.session_state['log_path'], log_temp_path)
 
                         log_drive_id = upload_drive(log_temp_path, creds, DRIVE_FOLDER_ID, logger)
                         if log_drive_id:
@@ -461,7 +478,7 @@ else:
                         st.session_state['log_uploaded'] = True
 
             #Ciscenje log fajla
-            open(LOG_PATH, 'w').close()
+            open(st.session_state['log_path'], 'w').close()
             logger.info("Log fajl uspešno ispražnjen.")
             
             try:
