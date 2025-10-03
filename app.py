@@ -21,7 +21,7 @@ from google_drive_utils import upload_drive, google_drive_auth
 
 LOCAL_OUTPUT_BASE_DIR = "output"
 LOG_PATH = os.path.join(LOCAL_OUTPUT_BASE_DIR, "app.log")
-LOG_DIR = "output/logs/"
+LOG_DIR = os.path.join('.', LOCAL_OUTPUT_BASE_DIR, 'logs')
 os.makedirs(LOCAL_OUTPUT_BASE_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 API_KEY = st.secrets["api_keys"]["openai"]
@@ -69,7 +69,7 @@ def check_password():
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state['user'] = ''
-    st.session_state['log_path'] = ''
+    st.session_state['log_path'] = LOG_PATH
 
 # Ako korisnik nije autorizovan, prikaži ekran za prijavu
 if not st.session_state["authenticated"]:
@@ -356,7 +356,8 @@ else:
                         --- END OF CLIENT JSON DATA ---
                 """
 
-                ai_comment = generate_AIcomment(prompt_text, API_KEY)
+                #ai_comment = generate_AIcomment(prompt_text, API_KEY)
+                ai_comment = "Proba"
                 logger.info("AI komentar uspešno generisan.")
 
                 ai_comment_output_base_dir = os.path.join(LOCAL_OUTPUT_BASE_DIR, "komentari")
@@ -463,6 +464,7 @@ else:
                     if DRIVE_FOLDER_ID:
                         #log_temp_path = f"{st.session_state['timestamp'] +'_'+ st.session_state['user']}_app.log"
                         pom = Path(st.session_state['log_path'])
+                        print(st.session_state['log_path'])
                         log_temp_path = pom.with_name(f"{pom.stem}_{st.session_state['analysis_no']}{pom.suffix}")
                         shutil.copy(st.session_state['log_path'], log_temp_path)
 
