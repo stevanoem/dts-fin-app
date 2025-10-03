@@ -54,6 +54,9 @@ def check_password():
                         # Ako se sifra poklopi, postavi stanje sesije i prekini
                         st.session_state["authenticated"] = True
                         st.session_state['user'] = username
+                        session_id = str(uuid.uuid4())[:8]
+                        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                        st.session_state['log_path'] = os.path.join(LOG_DIR, f"{timestamp}_{st.session_state['user']}_{session_id}.log")
                         st.rerun()
                 else:
                     st.error("Pristupna šifra nije tačna.")
@@ -69,7 +72,7 @@ def check_password():
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state['user'] = ''
-    st.session_state['log_path'] = LOG_PATH
+    st.session_state['log_path'] = ''
 
 # Ako korisnik nije autorizovan, prikaži ekran za prijavu
 if not st.session_state["authenticated"]:
@@ -79,8 +82,8 @@ else:
 
     def initialize_logger(user_name: str):
 
-        session_id = str(uuid.uuid4())[:8]
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        #session_id = str(uuid.uuid4())[:8]
+        #timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         logger_name = f"FinAiApp"
         logger = logging.getLogger(logger_name)
         logger.setLevel(logging.INFO)
@@ -98,7 +101,8 @@ else:
             logger.addHandler(stream_handler)
 
             # File handler za lokalni log koji ćeš slati na Google Drive
-            logfile = os.path.join(LOG_DIR, f"{timestamp}_{user_name}_{session_id}.log")
+            #logfile = os.path.join(LOG_DIR, f"{timestamp}_{user_name}_{session_id}.log")
+            logfile = st.session_state['log_path']
             file_handler = logging.FileHandler(logfile, encoding="utf-8")
             file_handler.setFormatter(log_formatter)
             logger.addHandler(file_handler)
